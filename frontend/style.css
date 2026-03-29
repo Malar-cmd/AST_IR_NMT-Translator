@@ -1,0 +1,34 @@
+html, body {
+  height: 100%;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+  color: white;
+}
+
+#editor {
+  flex: 1;
+}
+
+#console {
+  height: 200px;
+  background: black;
+  color: #0f0;
+  padding: 10px;
+}
+
+.modal {
+  display: none;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.6);
+}
+
+.modal-content {
+  background: #222;
+  margin: 10% auto;
+  padding: 20px;
+  width: 50%;
+}
