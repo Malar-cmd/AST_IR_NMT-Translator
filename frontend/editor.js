@@ -36,31 +36,31 @@ require(['vs/editor/editor.main'], function () {
 
   document.getElementById("translateBtn").onclick = () => {
 
-    fetch("/translate", {
+    fetch("http://127.0.0.1:5000/translate", {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: textarea.value })
     })
-    .then(res => res.json())
-    .then(data => {
-      editor.executeEdits("", [{
-        range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
-        text: "\n" + data.java_code + "\n"
-      }]);
-      modal.style.display = "none";
-    });
+      .then(res => res.json())
+      .then(data => {
+        editor.executeEdits("", [{
+          range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
+          text: "\n" + data.java_code + "\n"
+        }]);
+        modal.style.display = "none";
+      });
   };
 
   document.getElementById("runBtn").onclick = () => {
     fetch("/run", {
       method: "POST",
-      headers: {"Content-Type": "application/json"},
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: editor.getValue() })
     })
-    .then(res => res.json())
-    .then(data => {
-      document.getElementById("console").textContent = data.output;
-    });
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById("console").textContent = data.output;
+      });
   };
 
 });

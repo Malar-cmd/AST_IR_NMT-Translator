@@ -31,7 +31,7 @@ def editor():
 def translate():
     code = request.json["code"]
     return jsonify({
-        "java_code": translate_python_to_java(code)
+        "output": translate_python_to_java(code) 
     })
 
 

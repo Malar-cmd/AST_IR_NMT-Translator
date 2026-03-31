@@ -23,6 +23,7 @@ def ir_to_java(ir):
     for stmt in ir["body"]:
         if stmt["type"] != "function":
             code.extend(stmt_to_java(stmt))
+    
 
     return "\n".join(code)
 
