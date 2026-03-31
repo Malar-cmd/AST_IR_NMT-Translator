@@ -1,6 +1,9 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from translator import translate_python_to_java
+from ir_builder import build_ir
+from ir_to_java import ir_to_java
+from ir_normalizer import normalize_ir
 import subprocess
 import tempfile
 import os
@@ -27,13 +30,45 @@ def editor():
     return send_from_directory(FRONTEND_DIR, "editor.js")
 
 
+# @app.route("/translate", methods=["POST"])
+# def translate():
+#     code = request.json["code"]
+#     return jsonify({
+#         "output": translate_python_to_java(code) 
+#     })
 @app.route("/translate", methods=["POST"])
 def translate():
-    code = request.json["code"]
-    return jsonify({
-        "output": translate_python_to_java(code) 
-    })
 
+    try:
+        data = request.get_json()
+        code = data.get("code", "")
+
+        # ✅ Empty input check
+        if not code.strip():
+            return jsonify({
+                "output": "// No input provided"
+            })
+
+        # 🔥 STEP 1: Build IR
+        ir = build_ir(code)
+        print("Raw IR:", ir)
+
+        # 🔥 STEP 2: Normalize IR
+        normalized_ir = normalize_ir(ir)
+        print("Normalized IR:", normalized_ir)
+
+        # 🔥 STEP 3: Convert to Java
+        java_code = ir_to_java(normalized_ir)
+
+        return jsonify({
+            "output": java_code
+        })
+
+    except Exception as e:
+        print("ERROR:", e)
+        return jsonify({
+            "output": f"// ERROR: {str(e)}"
+        })
 
 @app.route("/run", methods=["POST"])
 def run_java():

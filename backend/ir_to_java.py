@@ -23,7 +23,6 @@ def ir_to_java(ir):
     for stmt in ir["body"]:
         if stmt["type"] != "function":
             code.extend(stmt_to_java(stmt))
-    
 
     return "\n".join(code)
 
@@ -49,18 +48,7 @@ def stmt_to_java(stmt):
             symbol_table[var] = value_type
             return [f"{value_type} {var} = {value};"]
 
-    # ---------- AUG ASSIGN ---------- #
-    if t == "aug_assign":
-        var = stmt["target"]
-        op = stmt["op"]
-        value = expr(stmt["value"])
-
-        # handle division upgrade
-        if op == "/" and symbol_table.get(var) == "int":
-            symbol_table[var] = "double"
-            return [f"{var} = (double){var} / {value};"]
-
-        return [f"{var} {op}= {value};"]
+    # ❌ REMOVED aug_assign (normalized IR handles it)
 
     # ---------- PRINT ---------- #
     if t == "print":
@@ -95,30 +83,25 @@ def stmt_to_java(stmt):
 
         return lines
 
-    # ---------- FOR LOOP ---------- #
+    # 🔥 ---------- NORMALIZED FOR LOOP ---------- #
     if t == "for":
-        var = stmt["var"]
-        iterable = stmt["iter"]
 
-        if iterable["type"] == "call" and iterable["name"] == "range":
-            args = iterable["args"]
+        init_stmt = stmt["init"]
+        condition = expr(stmt["condition"])
+        update_stmt = stmt["update"]
 
-            if len(args) == 1:
-                end = expr(args[0])
-                return [
-                    f"for (int {var} = 0; {var} < {end}; {var}++) {{",
-                    *indent_list(flatten([stmt_to_java(s) for s in stmt["body"]]), 1),
-                    "}"
-                ]
+        # Convert init & update
+        init_line = stmt_to_java(init_stmt)[0].replace(";", "")
+        update_line = stmt_to_java(update_stmt)[0].replace(";", "")
 
-            elif len(args) == 2:
-                start = expr(args[0])
-                end = expr(args[1])
-                return [
-                    f"for (int {var} = {start}; {var} < {end}; {var}++) {{",
-                    *indent_list(flatten([stmt_to_java(s) for s in stmt["body"]]), 1),
-                    "}"
-                ]
+        lines = [f"for ({init_line}; {condition}; {update_line}) {{"]
+
+        for s in stmt["body"]:
+            lines.extend(indent_list(stmt_to_java(s), 1))
+
+        lines.append("}")
+
+        return lines
 
     # ---------- WHILE ---------- #
     if t == "while":
@@ -239,17 +222,8 @@ def infer_param_types(func):
             return
 
         if e["type"] == "binary":
-            l = e["left"]
-            r = e["right"]
-
-            if infer_expr_type(l) == "String" or infer_expr_type(r) == "String":
-                if l["type"] == "var" and l["value"] in local_types:
-                    local_types[l["value"]] = "String"
-                if r["type"] == "var" and r["value"] in local_types:
-                    local_types[r["value"]] = "String"
-
-            scan_expr(l)
-            scan_expr(r)
+            scan_expr(e["left"])
+            scan_expr(e["right"])
 
         elif e["type"] == "call":
             for a in e["args"]:
