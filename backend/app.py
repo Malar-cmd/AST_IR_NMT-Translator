@@ -4,6 +4,8 @@ from translator import translate_python_to_java
 from ir_builder import build_ir
 from ir_to_java import ir_to_java
 from ir_normalizer import normalize_ir
+from ir_to_seq import ir_to_sequence
+from nmt_model import translate_ir_with_nmt
 import subprocess
 import tempfile
 import os
@@ -36,39 +38,62 @@ def editor():
 #     return jsonify({
 #         "output": translate_python_to_java(code) 
 #     })
+# @app.route("/translate", methods=["POST"])
+# def translate():
+
+#     try:
+#         data = request.get_json()
+#         code = data.get("code", "")
+
+#         # ✅ Empty input check
+#         if not code.strip():
+#             return jsonify({
+#                 "output": "// No input provided"
+#             })
+
+#         # 🔥 STEP 1: Build IR
+#         ir = build_ir(code)
+#         print("Raw IR:", ir)
+
+#         # 🔥 STEP 2: Normalize IR
+#         normalized_ir = normalize_ir(ir)
+#         print("Normalized IR:", normalized_ir)
+
+#         # 🔥 STEP 3: Convert to Java
+#         java_code = ir_to_java(normalized_ir)
+
+#         return jsonify({
+#             "output": java_code
+#         })
+
+#     except Exception as e:
+#         print("ERROR:", e)
+#         return jsonify({
+#             "output": f"// ERROR: {str(e)}"
+#         })
+
 @app.route("/translate", methods=["POST"])
 def translate():
 
-    try:
-        data = request.get_json()
-        code = data.get("code", "")
+    code = request.json["code"]
 
-        # ✅ Empty input check
-        if not code.strip():
-            return jsonify({
-                "output": "// No input provided"
-            })
+    ir = build_ir(code)
+    normalized_ir = normalize_ir(ir)
 
-        # 🔥 STEP 1: Build IR
-        ir = build_ir(code)
-        print("Raw IR:", ir)
+    # 🔥 Convert IR to sequence
+    seq = ir_to_sequence(normalized_ir)
+    print("IR Sequence:", seq)
 
-        # 🔥 STEP 2: Normalize IR
-        normalized_ir = normalize_ir(ir)
-        print("Normalized IR:", normalized_ir)
+    # 🔥 NMT output
+    ai_java = translate_ir_with_nmt(seq)
 
-        # 🔥 STEP 3: Convert to Java
-        java_code = ir_to_java(normalized_ir)
+    # 🔥 Rule-based output (fallback)
+    rule_java = ir_to_java(normalized_ir)
 
-        return jsonify({
-            "output": java_code
-        })
-
-    except Exception as e:
-        print("ERROR:", e)
-        return jsonify({
-            "output": f"// ERROR: {str(e)}"
-        })
+    return jsonify({
+        "rule_output": rule_java,
+        "ai_output": ai_java
+    })
 
 @app.route("/run", methods=["POST"])
 def run_java():

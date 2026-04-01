@@ -30,35 +30,6 @@ def stmt_to_ir(stmt):
             "value": expr_to_ir(stmt.value)
         }
 
-    # ---------- AUG ASSIGN ---------- #
-    if isinstance(stmt, ast.AugAssign):
-        return {
-            "type": "aug_assign",
-            "target": stmt.target.id,
-            "op": op(stmt.op),
-            "value": expr_to_ir(stmt.value)
-        }
-
-    # ---------- EXPRESSION ---------- #
-    if isinstance(stmt, ast.Expr):
-        return expr_to_ir(stmt.value)
-
-    # ---------- RETURN ---------- #
-    if isinstance(stmt, ast.Return):
-        return {
-            "type": "return",
-            "value": expr_to_ir(stmt.value) if stmt.value else None
-        }
-
-    # ---------- IF ---------- #
-    if isinstance(stmt, ast.If):
-        return {
-            "type": "if",
-            "condition": expr_to_ir(stmt.test),
-            "then": [stmt_to_ir(s) for s in stmt.body],
-            "else": [stmt_to_ir(s) for s in stmt.orelse]
-        }
-
     # ---------- FOR ---------- #
     if isinstance(stmt, ast.For):
         return {
@@ -76,12 +47,47 @@ def stmt_to_ir(stmt):
             "body": [stmt_to_ir(s) for s in stmt.body]
         }
 
+    # ---------- IF ---------- #
+    if isinstance(stmt, ast.If):
+        return {
+            "type": "if",
+            "condition": expr_to_ir(stmt.test),
+            "then": [stmt_to_ir(s) for s in stmt.body],
+            "else": [stmt_to_ir(s) for s in stmt.orelse]
+        }
+
+    # ---------- RETURN ---------- #
+    if isinstance(stmt, ast.Return):
+        return {
+            "type": "return",
+            "value": expr_to_ir(stmt.value) if stmt.value else None
+        }
+
+    # ---------- EXPRESSION ---------- #
+    if isinstance(stmt, ast.Expr):
+        return expr_to_ir(stmt.value)
+
     return {"type": "unknown"}
 
 
 # ---------------- EXPRESSIONS ---------------- #
 
 def expr_to_ir(expr):
+
+    # ---------- CONSTANT ---------- #
+    if isinstance(expr, ast.Constant):
+        return {"type": "const", "value": expr.value}
+
+    # ---------- VARIABLE ---------- #
+    if isinstance(expr, ast.Name):
+        return {"type": "var", "value": expr.id}
+
+    # ---------- LIST ---------- #
+    if isinstance(expr, ast.List):
+        return {
+            "type": "list",
+            "elements": [expr_to_ir(e) for e in expr.elts]
+        }
 
     # ---------- BINARY ---------- #
     if isinstance(expr, ast.BinOp):
@@ -92,39 +98,7 @@ def expr_to_ir(expr):
             "right": expr_to_ir(expr.right)
         }
 
-    # ---------- VARIABLE ---------- #
-    if isinstance(expr, ast.Name):
-        return {
-            "type": "var",
-            "value": expr.id
-        }
-
-    # ---------- CONSTANT ---------- #
-    if isinstance(expr, ast.Constant):
-        value = expr.value
-        return {
-            "type": "const",
-            "value": value,
-            "datatype": infer_type(value)
-        }
-
-    # ---------- FUNCTION CALL ---------- #
-    if isinstance(expr, ast.Call):
-
-        # Handle print separately
-        if isinstance(expr.func, ast.Name) and expr.func.id == "print":
-            return {
-                "type": "print",
-                "args": [expr_to_ir(a) for a in expr.args]
-            }
-
-        return {
-            "type": "call",
-            "name": expr.func.id,
-            "args": [expr_to_ir(a) for a in expr.args]
-        }
-
-    # ---------- COMPARISON ---------- #
+    # ---------- COMPARE ---------- #
     if isinstance(expr, ast.Compare):
         return {
             "type": "compare",
@@ -133,12 +107,48 @@ def expr_to_ir(expr):
             "right": expr_to_ir(expr.comparators[0])
         }
 
+    # ---------- LAMBDA ---------- #
+    if isinstance(expr, ast.Lambda):
+        return {
+            "type": "lambda",
+            "params": [a.arg for a in expr.args.args],
+            "body": expr_to_ir(expr.body)
+        }
+
+    # ---------- CALL ---------- #
+    if isinstance(expr, ast.Call):
+
+        # PRINT
+        if isinstance(expr.func, ast.Name) and expr.func.id == "print":
+            return {
+                "type": "print",
+                "args": [expr_to_ir(a) for a in expr.args]
+            }
+
+        # NORMAL FUNCTION
+        if isinstance(expr.func, ast.Name):
+            return {
+                "type": "call",
+                "name": expr.func.id,
+                "args": [expr_to_ir(a) for a in expr.args]
+            }
+
+        # 🔥 METHOD CALL (FIXED)
+        if isinstance(expr.func, ast.Attribute):
+            return {
+                "type": "method_call",
+                "object": expr_to_ir(expr.func.value),
+                "method": expr.func.attr,
+                "args": [expr_to_ir(a) for a in expr.args]
+            }
+
     return {"type": "unknown"}
 
 
 # ---------------- OPERATORS ---------------- #
 
 def op(o):
+
     if isinstance(o, ast.Add): return "+"
     if isinstance(o, ast.Sub): return "-"
     if isinstance(o, ast.Mult): return "*"
@@ -150,17 +160,8 @@ def op(o):
     if isinstance(o, ast.Eq): return "=="
     if isinstance(o, ast.NotEq): return "!="
     if isinstance(o, ast.Lt): return "<"
-    if isinstance(o, ast.Gt): return ">"
     if isinstance(o, ast.LtE): return "<="
+    if isinstance(o, ast.Gt): return ">"
     if isinstance(o, ast.GtE): return ">="
 
     return "?"
-
-
-# ---------------- TYPE INFERENCE ---------------- #
-
-def infer_type(value):
-    if isinstance(value, int): return "int"
-    if isinstance(value, float): return "double"
-    if isinstance(value, str): return "String"
-    return "var"

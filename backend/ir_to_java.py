@@ -2,7 +2,22 @@
 
 declared_vars = set()
 symbol_table = {}
+METHOD_MAP = {
+    # ---------- LIST ---------- #
+    "append": "add",
+    "pop": "remove",
+    "insert": "add",   # simplified
+    "clear": "clear",
 
+    # ---------- STRING ---------- #
+    "upper": "toUpperCase",
+    "lower": "toLowerCase",
+    "strip": "trim",
+    "replace": "replace",
+
+    # ---------- GENERAL ---------- #
+    "len": "size",   # handled separately
+}
 
 # ---------------- MAIN ---------------- #
 
@@ -25,10 +40,6 @@ def ir_to_java(ir):
             code.extend(stmt_to_java(stmt))
 
     return "\n".join(code)
-
-
-# ---------------- STATEMENTS ---------------- #
-
 def stmt_to_java(stmt):
 
     global declared_vars, symbol_table
@@ -37,8 +48,42 @@ def stmt_to_java(stmt):
     # ---------- ASSIGN ---------- #
     if t == "assign":
         var = stmt["target"]
-        value = expr(stmt["value"])
-        value_type = infer_expr_type(stmt["value"])
+        value_obj = stmt["value"]
+
+        # 🔥 ---------- LIST LITERAL [] / [1,2] ---------- #
+        if value_obj.get("type") == "list":
+
+            elements = value_obj.get("elements", [])
+
+            if var not in declared_vars:
+                declared_vars.add(var)
+                symbol_table[var] = "List"
+
+                if not elements:
+                    return [f"List {var} = new ArrayList<>();"]
+
+                vals = ", ".join(expr(e) for e in elements)
+                return [f"List {var} = new ArrayList<>(Arrays.asList({vals}));"]
+
+            else:
+                if not elements:
+                    return [f"{var} = new ArrayList<>();"]
+
+                vals = ", ".join(expr(e) for e in elements)
+                return [f"{var} = new ArrayList<>(Arrays.asList({vals}));"]
+
+        # ---------- LIST INIT ---------- #
+        if value_obj.get("type") == "list_init":
+            if var not in declared_vars:
+                declared_vars.add(var)
+                symbol_table[var] = "List"
+                return [f"List {var} = new ArrayList<>();"]
+            else:
+                return [f"{var} = new ArrayList<>();"]
+
+        # ---------- NORMAL ASSIGN ---------- #
+        value = expr(value_obj)
+        value_type = infer_expr_type(value_obj)
 
         if var in declared_vars:
             symbol_table[var] = value_type
@@ -48,7 +93,9 @@ def stmt_to_java(stmt):
             symbol_table[var] = value_type
             return [f"{value_type} {var} = {value};"]
 
-    # ❌ REMOVED aug_assign (normalized IR handles it)
+    # ---------- APPEND ---------- #
+    if t == "append":
+        return [f"{stmt['target']}.add({expr(stmt['value'])});"]
 
     # ---------- PRINT ---------- #
     if t == "print":
@@ -59,6 +106,13 @@ def stmt_to_java(stmt):
     if t == "call":
         args = ", ".join(expr(a) for a in stmt["args"])
         return [f"{stmt['name']}({args});"]
+
+    # ---------- METHOD CALL ---------- #
+    if t == "method_call":
+        obj = expr(stmt["object"])
+        method = METHOD_MAP.get(stmt["method"], stmt["method"])
+        args = ", ".join(expr(a) for a in stmt["args"])
+        return [f"{obj}.{method}({args});"]
 
     # ---------- RETURN ---------- #
     if t == "return":
@@ -83,16 +137,11 @@ def stmt_to_java(stmt):
 
         return lines
 
-    # 🔥 ---------- NORMALIZED FOR LOOP ---------- #
+    # ---------- FOR ---------- #
     if t == "for":
-
-        init_stmt = stmt["init"]
+        init_line = stmt_to_java(stmt["init"])[0].replace(";", "")
         condition = expr(stmt["condition"])
-        update_stmt = stmt["update"]
-
-        # Convert init & update
-        init_line = stmt_to_java(init_stmt)[0].replace(";", "")
-        update_line = stmt_to_java(update_stmt)[0].replace(";", "")
+        update_line = stmt_to_java(stmt["update"])[0].replace(";", "")
 
         lines = [f"for ({init_line}; {condition}; {update_line}) {{"]
 
@@ -100,7 +149,16 @@ def stmt_to_java(stmt):
             lines.extend(indent_list(stmt_to_java(s), 1))
 
         lines.append("}")
+        return lines
 
+    # ---------- FOR EACH ---------- #
+    if t == "for_each":
+        lines = [f"for (int {stmt['var']} : {expr(stmt['iter'])}) {{"]
+
+        for s in stmt["body"]:
+            lines.extend(indent_list(stmt_to_java(s), 1))
+
+        lines.append("}")
         return lines
 
     # ---------- WHILE ---------- #
@@ -112,6 +170,98 @@ def stmt_to_java(stmt):
         ]
 
     return ["// unsupported"]
+# ---------------- STATEMENTS ---------------- #
+
+# def stmt_to_java(stmt):
+
+#     global declared_vars, symbol_table
+#     t = stmt["type"]
+
+#     # ---------- ASSIGN ---------- #
+#     if t == "assign":
+#         var = stmt["target"]
+#         value = expr(stmt["value"])
+#         value_type = infer_expr_type(stmt["value"])
+
+#         if var in declared_vars:
+#             symbol_table[var] = value_type
+#             return [f"{var} = {value};"]
+#         else:
+#             declared_vars.add(var)
+#             symbol_table[var] = value_type
+#             return [f"{value_type} {var} = {value};"]
+
+#     # ❌ REMOVED aug_assign (normalized IR handles it)
+
+#     # ---------- PRINT ---------- #
+#     if t == "print":
+#         args = ", ".join(expr(a) for a in stmt["args"])
+#         return [f"System.out.println({args});"]
+
+#     # ---------- CALL ---------- #
+#     if t == "call":
+#         args = ", ".join(expr(a) for a in stmt["args"])
+#         return [f"{stmt['name']}({args});"]
+
+#     # ---------- RETURN ---------- #
+#     if t == "return":
+#         if stmt.get("value") is not None:
+#             return [f"return {expr(stmt['value'])};"]
+#         return ["return;"]
+
+#     # ---------- IF ---------- #
+#     if t == "if":
+#         lines = [f"if ({expr(stmt['condition'])}) {{"]
+
+#         for s in stmt["then"]:
+#             lines.extend(indent_list(stmt_to_java(s), 1))
+
+#         lines.append("}")
+
+#         if stmt["else"]:
+#             lines.append("else {")
+#             for s in stmt["else"]:
+#                 lines.extend(indent_list(stmt_to_java(s), 1))
+#             lines.append("}")
+
+#         return lines
+
+#     # 🔥 ---------- NORMALIZED FOR LOOP ---------- #
+#     if t == "for":
+
+#         init_stmt = stmt["init"]
+#         condition = expr(stmt["condition"])
+#         update_stmt = stmt["update"]
+
+#         # Convert init & update
+#         init_line = stmt_to_java(init_stmt)[0].replace(";", "")
+#         update_line = stmt_to_java(update_stmt)[0].replace(";", "")
+
+#         lines = [f"for ({init_line}; {condition}; {update_line}) {{"]
+
+#         for s in stmt["body"]:
+#             lines.extend(indent_list(stmt_to_java(s), 1))
+
+#         lines.append("}")
+
+#         return lines
+
+#     # ---------- WHILE ---------- #
+#     if t == "while":
+#         return [
+#             f"while ({expr(stmt['condition'])}) {{",
+#             *indent_list(flatten([stmt_to_java(s) for s in stmt["body"]]), 1),
+#             "}"
+#         ]
+#     if t == "for_each":
+#         lines = [f"for (int {stmt['var']} : {expr(stmt['iter'])}) {{"]
+
+#         for s in stmt["body"]:
+#             lines.extend(indent_list(stmt_to_java(s), 1))
+
+#         lines.append("}")
+#         return lines
+#     return ["// unsupported"]
 
 
 # ---------------- EXPRESSIONS ---------------- #
@@ -136,12 +286,22 @@ def expr(e):
             return f"\"{e['value']}\""
         return str(e["value"])
 
+    # 🔥 len() FIX
     if t == "call":
+        if e["name"] == "len":
+            return f"{expr(e['args'][0])}.size()"
+
         args = ", ".join(expr(a) for a in e["args"])
         return f"{e['name']}({args})"
 
-    return "null"
+    # 🔥 METHOD CALL FIX
+    if t == "method_call":
+        obj = expr(e["object"])
+        method = METHOD_MAP.get(e["method"], e["method"])
+        args = ", ".join(expr(a) for a in e["args"])
+        return f"{obj}.{method}({args})"
 
+    return "null"
 
 # ---------------- TYPE INFERENCE ---------------- #
 
