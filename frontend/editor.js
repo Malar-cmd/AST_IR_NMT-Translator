@@ -7,7 +7,9 @@ require(['vs/editor/editor.main'], function () {
   const editor = monaco.editor.create(
     document.getElementById('editor'),
     {
-      value: `public class Main {
+      value: `import java.util.*;
+
+public class Main {
 
     public static void main(String[] args) {
 
@@ -22,44 +24,90 @@ require(['vs/editor/editor.main'], function () {
   const modal = document.getElementById("pythonModal");
   const textarea = document.getElementById("pythonInput");
 
-  let pos;
-
+  // 🔥 Open modal (Ctrl + Enter)
   editor.addCommand(
     monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
     () => {
-      pos = editor.getPosition();
       modal.style.display = "block";
     }
   );
 
-  document.getElementById("cancelBtn").onclick = () => modal.style.display = "none";
+  // 🔥 Cancel modal
+  document.getElementById("cancelBtn").onclick = () => {
+    modal.style.display = "none";
+  };
 
+  // 🔥 TRANSLATE (FINAL FIXED)
   document.getElementById("translateBtn").onclick = () => {
+
+    const code = textarea.value;
+
+    console.log("Sending Python:", code);
+
+    if (!code.trim()) {
+      alert("Please enter Python code!");
+      return;
+    }
 
     fetch("http://127.0.0.1:5000/translate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: textarea.value })
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ code: code })
     })
       .then(res => res.json())
       .then(data => {
-        editor.executeEdits("", [{
-          range: new monaco.Range(pos.lineNumber, pos.column, pos.lineNumber, pos.column),
-          text: "\n" + data.java_code + "\n"
-        }]);
+
+        console.log("Backend response:", data);
+
+        const javaCode = data.output || "// Translation failed";
+
+        // 🔥 Safe insertion into main()
+        const currentCode = editor.getValue();
+
+        const updatedCode = currentCode.replace(
+          /public static void main\(String\[\] args\) \{\s*/,
+          match => match + "\n        " + javaCode.replace(/\n/g, "\n        ") + "\n"
+        );
+
+        editor.setValue(updatedCode);
+
         modal.style.display = "none";
+        textarea.value = "";
+      })
+      .catch(err => {
+        console.error("Translate error:", err);
+        alert("Translation failed!");
       });
   };
 
+  // 🔥 RUN JAVA
   document.getElementById("runBtn").onclick = () => {
-    fetch("/run", {
+
+    const code = editor.getValue();
+
+    console.log("Running Java:", code);
+
+    fetch("http://127.0.0.1:5000/run", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: editor.getValue() })
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ code: code })
     })
       .then(res => res.json())
       .then(data => {
-        document.getElementById("console").textContent = data.output;
+
+        console.log("Run output:", data);
+
+        document.getElementById("console").textContent =
+          data.output || "Program executed (no output)";
+      })
+      .catch(err => {
+        console.error("Run error:", err);
+        document.getElementById("console").textContent =
+          "Error running code.";
       });
   };
 
