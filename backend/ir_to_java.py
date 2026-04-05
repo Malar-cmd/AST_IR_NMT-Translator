@@ -1,4 +1,3 @@
-# ---------------- GLOBAL STATE ---------------- #
 declared_vars = set()
 symbol_table = {}
 
@@ -15,14 +14,12 @@ METHOD_MAP = {
 }
 
 
-# ---------------- STATE CONTROL ---------------- #
 def reset_translation_state():
     global declared_vars, symbol_table
     declared_vars = set()
     symbol_table = {}
 
 
-# ---------------- TYPE FIX ---------------- #
 def to_wrapper_type(t):
     return {
         "int": "Integer",
@@ -33,11 +30,9 @@ def to_wrapper_type(t):
     }.get(t, t)
 
 
-# ---------------- MAIN ---------------- #
 def ir_to_java(ir, preserve_state=False):
     global declared_vars, symbol_table
 
-    # 🔥 Reset only if NOT preserving state
     if not preserve_state:
         declared_vars = set()
         symbol_table = {}
@@ -53,17 +48,14 @@ def ir_to_java(ir, preserve_state=False):
     return "\n".join(code)
 
 
-# ---------------- STATEMENTS ---------------- #
 def stmt_to_java(stmt):
     global declared_vars, symbol_table
     t = stmt["type"]
 
-    # ---------- ASSIGN ---------- #
     if t == "assign":
         var = stmt["target"]
         value_obj = stmt["value"]
 
-        # LIST
         if value_obj.get("type") == "list":
             elements = value_obj.get("elements", [])
             elem_type = to_wrapper_type(infer_list_type(elements))
@@ -81,10 +73,8 @@ def stmt_to_java(stmt):
 
             return [f"List<{elem_type}> {var} = new ArrayList<>(Arrays.asList({vals}));"]
 
-        # NORMAL
         value = expr(value_obj)
 
-        # 🔥 KEY FIX: prevent redeclaration
         if var in declared_vars:
             return [f"{var} = {value};"]
 
@@ -95,23 +85,19 @@ def stmt_to_java(stmt):
 
         return [f"{value_type} {var} = {value};"]
 
-    # ---------- PRINT ---------- #
     if t == "print":
         args = " + \" \" + ".join(expr(a) for a in stmt["args"])
         return [f"System.out.println({args});"]
 
-    # ---------- APPEND ---------- #
     if t == "append":
         return [f"{stmt['target']}.add({expr(stmt['value'])});"]
 
-    # ---------- METHOD CALL ---------- #
     if t == "method_call":
         obj = expr(stmt["object"])
         method = METHOD_MAP.get(stmt["method"], stmt["method"])
         args = ", ".join(expr(a) for a in stmt["args"])
         return [f"{obj}.{method}({args});"]
 
-    # ---------- IF ---------- #
     if t == "if":
         lines = [f"if ({expr(stmt['condition'])}) {{"]
 
@@ -128,10 +114,8 @@ def stmt_to_java(stmt):
 
         return lines
 
-    # ---------- FOR ---------- #
     if t == "for":
 
-        # C-style
         if "init" in stmt:
             init = stmt_to_java(stmt["init"])[0].replace(";", "")
             cond = expr(stmt["condition"])
@@ -145,12 +129,10 @@ def stmt_to_java(stmt):
             lines.append("}")
             return lines
 
-        # Python-style
         elif "iter" in stmt:
             var = stmt["var"]
             iterable = expr(stmt["iter"])
 
-            # 🔥 Infer type
             if isinstance(stmt["iter"], dict) and stmt["iter"]["type"] == "var":
                 list_name = stmt["iter"]["value"]
                 list_type = symbol_table.get(list_name, "Object")
@@ -162,7 +144,6 @@ def stmt_to_java(stmt):
             else:
                 var_type = "Object"
 
-            # 🔥 prevent redeclaration in loops
             if var not in declared_vars:
                 declared_vars.add(var)
                 header = f"for ({var_type} {var} : {iterable}) {{"
@@ -179,7 +160,6 @@ def stmt_to_java(stmt):
 
         return ["// unsupported for-loop"]
 
-    # ---------- FOR EACH ---------- #
     if t == "for_each":
         var = stmt["var"]
         iterable = expr(stmt["iter"])
@@ -209,7 +189,6 @@ def stmt_to_java(stmt):
         lines.append("}")
         return lines
 
-    # ---------- WHILE ---------- #
     if t == "while":
         return [
             f"while ({expr(stmt['condition'])}) {{",
@@ -217,7 +196,6 @@ def stmt_to_java(stmt):
             "}"
         ]
 
-    # ---------- RETURN ---------- #
     if t == "return":
         if stmt.get("value"):
             return [f"return {expr(stmt['value'])};"]
@@ -226,7 +204,6 @@ def stmt_to_java(stmt):
     return ["// unsupported"]
 
 
-# ---------------- EXPRESSIONS ---------------- #
 def expr(e):
     t = e["type"]
 
@@ -261,7 +238,6 @@ def expr(e):
     return "null"
 
 
-# ---------------- TYPE INFERENCE ---------------- #
 def infer_expr_type(e):
     t = e["type"]
 
@@ -297,7 +273,6 @@ def infer_list_type(elements):
     return "Object"
 
 
-# ---------------- FUNCTIONS ---------------- #
 def function_to_java(func):
     global declared_vars, symbol_table
 
@@ -323,7 +298,6 @@ def function_to_java(func):
     return "\n".join(lines)
 
 
-# ---------------- HELPERS ---------------- #
 def indent_list(lines, level):
     pad = "    " * level
     return [pad + line for line in lines]
