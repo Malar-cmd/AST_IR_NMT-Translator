@@ -28,7 +28,7 @@ def stmt_to_seq(stmt):
         for s in stmt["then"]:
             lines.extend(["  " + l for l in stmt_to_seq(s)])
 
-        if stmt.get("else"):  # ✅ safer
+        if stmt.get("else")
             lines.append("ELSE")
             for s in stmt["else"]:
                 lines.extend(["  " + l for l in stmt_to_seq(s)])
@@ -39,7 +39,6 @@ def stmt_to_seq(stmt):
     # ---------- FOR LOOP (FIXED) ---------- #
     if t == "for":
 
-        # ✅ Case 1: C-style for loop
         if "init" in stmt:
             init = stmt_to_seq(stmt["init"])[0]
             cond = expr_to_seq(stmt["condition"])
@@ -53,7 +52,7 @@ def stmt_to_seq(stmt):
             lines.append("ENDFOR")
             return lines
 
-        # ✅ Case 2: Python-style for loop (for x in list)
+        # Python-style for loop (for x in list)
         elif "iter" in stmt:
             var = stmt["var"]
             iterable = expr_to_seq(stmt["iter"])
@@ -66,7 +65,7 @@ def stmt_to_seq(stmt):
             lines.append("ENDFOR")
             return lines
 
-        # ❌ fallback
+        # fallback
         return ["FOR_UNKNOWN"]
 
     # ---------- FOR EACH (explicit IR) ---------- #
@@ -110,7 +109,7 @@ def expr_to_seq(e):
 
     if t == "const":
         if isinstance(e["value"], str):
-            return f"\"{e['value']}\""   # ✅ string fix
+            return f"\"{e['value']}\""
         return str(e["value"])
 
     if t == "call":

@@ -24,20 +24,38 @@ public class Main {
   const modal = document.getElementById("pythonModal");
   const textarea = document.getElementById("pythonInput");
 
-  // 🔥 Open modal (Ctrl + Enter)
+  // editor.addCommand(
+  //   monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+  //   () => {
+  //     modal.style.display = "block";
+  //   }
+  // );
   editor.addCommand(
-    monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-    () => {
-      modal.style.display = "block";
-    }
-  );
+  monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+  () => {
+    modal.style.display = "block";
 
-  // 🔥 Cancel modal
+    // 🔥 clear previous input (optional)
+    textarea.value = "";
+
+
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(0, 0);
+    }, 0);
+  }
+);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      modal.style.display = "none";
+    }
+  });
+
   document.getElementById("cancelBtn").onclick = () => {
     modal.style.display = "none";
   };
 
-  // 🔥 TRANSLATE (FINAL FIXED)
+  
   document.getElementById("translateBtn").onclick = () => {
 
     const code = textarea.value;
